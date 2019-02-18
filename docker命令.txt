@@ -1,0 +1,2 @@
+# 干掉所有容器
+docker stop $(docker ps -a -q) && docker rm $(docker ps -a -q)
