@@ -1,0 +1,48 @@
+# 选择一个已有的os镜像作为基础
+FROM ubuntu:16.04
+# 镜像的作者
+MAINTAINER lxhao
+
+# 安装openssh-server和sudo软件包，并且将sshd的UsePAM参数设置成no
+RUN apt update
+RUN apt install -y openssh-server 
+#安装openssh-clients
+RUN apt install -y openssh-client
+# 安装网络相关命令
+RUN apt install -y vim
+RUN apt-get install net-tools
+
+# 添加测试用户root，密码root，并且将此用户添加到sudoers里
+RUN echo "root:root" | chpasswd
+RUN echo "root   ALL=(ALL)   ALL" >> /etc/sudoers
+RUN apt-get install -y python default-jdk curl maven python-pip 
+RUN pip install pyhdfs
+# set java env
+RUN echo 'export JAVA_HOME=/usr/lib/jvm/default-java/' >> /etc/bash.bashrc
+RUN echo 'export PATH=$PATH:/usr/local/hadoop/bin/:/usr/local/hadoop/sbin/' >> /etc/bash.bashrc
+RUN mkdir -p /data/hadoop/data && mkdir -p /data/hadoop/name
+# 下载hadoop
+# RUN curl http://apache.claz.org/hadoop/common/hadoop-2.9.2/hadoop-2.9.2.tar.gz > hadoop-2.9.2.tar.gz
+ADD hadoop-2.9.2.tar.gz /usr/local/
+RUN ln -s /usr/local/hadoop-2.9.2/ /usr/local/hadoop
+# conf hadoop
+RUN find /usr/local
+ADD hadoop_conf.py master slaves /root/
+RUN cd /root && python3 hadoop_conf.py
+# set JAVA_HOME
+RUN sed -i '/export JAVA_HOME/s/${JAVA_HOME}/\/usr\/lib\/jvm\/default-java\//g' /usr/local/hadoop/etc/hadoop/hadoop-env.sh
+# 启动sshd服务并且暴露22端口
+RUN echo 'StrictHostKeyChecking no' >> /etc/ssh/ssh_config
+RUN apt install -y expect
+ADD genSSH.exp /root/
+ADD startHadoop.exp /root/
+RUN chmod a+x /root/genSSH.exp
+RUN chmod a+x /root/startHadoop.exp
+RUN /etc/init.d/ssh start
+# ssh免密登陆
+RUN ssh-keygen -t rsa -f /root/.ssh/id_rsa -P ""
+RUN cat /root/.ssh/id_rsa.pub  > /root/.ssh/authorized_keys
+EXPOSE 22
+EXPOSE 50070
+EXPOSE 8088
+CMD ["/usr/sbin/sshd", "-D"]
